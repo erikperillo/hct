@@ -1,0 +1,6 @@
+*.pyc
+*.swp
+*.auth
+doc/*
+!doc/proposta.tex
+!doc/proposta.bib

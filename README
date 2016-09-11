@@ -1,0 +1,4 @@
+hct - Hashtag Counter for Twitter
+
+This app uses Hadoop + Apache Spark + Twitter Streaming API 
+in order to achieve real-time hashtag counting.

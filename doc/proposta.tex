@@ -1,0 +1,96 @@
+\documentclass[11pt]{article}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage[brazilian]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[backend=biber]{biblatex}
+\usepackage{csquotes}
+%\usepackage{docmute}
+\usepackage{array}
+\usepackage{multicol}
+\usepackage{geometry}
+\usepackage[T1]{fontenc}
+
+\addbibresource{proposta.bib}
+
+\newcommand{\fromeng}[1]{\footnote{do inglês: \textit{#1}}}
+\newcommand{\tit}[1]{\textit{#1}}
+\newcommand{\tbf}[1]{\textbf{#1}}
+\newcommand{\ttt}[1]{\texttt{#1}}
+
+\newcolumntype{C}[1]{>{\centering\let\newline\\\arraybackslash\hspace{0pt}}m{#1}}
+
+\begin{document}
+
+\begin{titlepage}
+	\centering
+	{\scshape\Large Plano de Trabalho\par}
+	\vspace{1.5cm}
+	{\huge\bfseries Um contador de \tit{hashtags} em tempo real para 
+		\tit{twitter} usando \tit{Hadoop} e \tit{Spark}\par}
+	\vspace{1cm}
+	{\itshape Erik de Godoy Perillo - RA135582 - Grupo 17\par}
+	\vspace{0.5cm}
+	\begin{abstract}
+		Neste documento, descreve-se a proposta para uma aplicação das 
+		ferramentas vistas na disciplina 
+		MC855 - Projeto em Sistemas de Computação.
+	\end{abstract}
+	\vfill
+	Universidade Estadual de Campinas 
+	\vfill
+	{\large \today\par}
+\end{titlepage}
+
+\newgeometry{margin=1in}
+\begin{multicols}{2}
+
+\section{Introdução}
+Redes sociais são uma fonte quase interminável de dados para \tit{Big Data}.
+O colossal número de pessoas a usar esse sistema atualmente, juntamente com
+técnicas avançadas de análise de grande volume de dados permite a extração
+de uma quantidade enorme de informação útil.
+Neste trabalho, a ideia é fazer um contador de \tit{hashtags} no \tit{twitter}
+em tempo real, com possibilidade de filtragem por local/palavras.
+
+\section{Frameworks}
+A aplicação será possível tendo-se como base três componentes principais:
+
+\begin{itemize}
+	\item \tbf{Twitter Streaming API}~\cite{twit-stream} - 
+		A API do \tit{twitter} é usada para a obtenção de
+		mensagens da rede social em tempo real. Com a biblioteca, é possível
+		obter uma amostra estatisticamente significativa das mensagens
+		públicas do \tit{website}, com a opção de filtragem de mensagens por
+		diversos critérios, como localização, idioma, palavras-chave etc.
+
+	\item \tbf{Apache Hadoop}~\cite{hadoop} -
+		\tit{Framework} amplamente usado hoje em dia com um ecossistema para
+		\tit{Big Data} que possibilita a concepção de sistemas distribuídos
+		com alto desempenho e confiabilidade.
+
+	\item \tbf{Apache Spark}~\cite{spark} -
+		Módulo que fica logicamente -- em geral -- acima da camada do 
+		\tit{Hadoop}, extendendo-o com novas funcionalidades. Uma delas é
+		a habilidade de lidar com \tit{streaming} de dados que chegam de modo
+		contínuo em tempo real.
+\end{itemize}
+
+\section{Comportamento da aplicação}
+A aplicação irá receber um \tit{stream} contínuo de dados do \tit{twitter}
+através da API \tit{Twitter Streaming}. Será dada atenção especial ao corpo
+das mensagens que chegam no fluxo. 
+
+As mensagens serão enviadas então para o \tit{Spark}, que irá processar os dados
+e analizar as \tit{hashtags} das mensagens. 
+No fim, será possível investigar em tempo real quais as \tit{hashtags} mais
+utilizadas atualmente advindas de mensagens com possíveis critérios de filtro,
+como local, idioma, palavras-chave etc.
+
+\printbibliography
+
+\end{multicols}
+
+\end{document}
