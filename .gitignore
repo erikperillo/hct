@@ -2,5 +2,6 @@
 *.swp
 *.auth
 doc/*
+hct/checkpoint/
 !doc/proposta.tex
 !doc/proposta.bib

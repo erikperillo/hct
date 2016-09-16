@@ -1,4 +1,14 @@
+#/usr/bin/env python3
+
+#import ggplot as ggp
+import matplotlib.animation as am
+from matplotlib import style
+style.use("ggplot")
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
 import threading
+import datetime
 import socket
 import random
 import oarg
@@ -7,8 +17,11 @@ import json
 import sys
 import os
 #spark api
-from pyspark import SparkContext
-from pyspark.streaming import StreamingContext
+try:
+    from pyspark import SparkContext
+    from pyspark.streaming import StreamingContext
+except ImportError:
+    print("WARNING: could not import pyspark")
 #twitter streaming api
 from tweepy.streaming import StreamListener
 from tweepy import OAuthHandler
@@ -22,6 +35,31 @@ LOCATIONS = {
     #this area covers the state of sao paulo and part of mg, rj and pr (brazil)
     "sp": [-53.342250, -25.271552, -43.388637, -19.235468]
 }
+
+#plotting constants
+min_x, max_x = 0., 60.
+min_y, max_y = 0., 12.
+x_shift, y_shift = 10, 5
+
+#number of hashtags
+NUM_HTS = 10
+
+#global variables
+#hashtags data container
+df = pd.DataFrame()
+#flag for when data container is updated
+updated = False
+
+#plot variables
+fig = plt.figure()
+ax1 = plt.axes(xlim=(min_x, max_x), ylim=(min_y, max_y))
+l = ax1.plot([], [], lw=2)[0]
+plt.xlabel("time")
+plt.ylabel("frequency")
+lines = []
+for i in range(NUM_HTS):
+    line = ax1.plot([], [], lw=2)[0]
+    lines.append(line)
 
 def get_twitter_keys(filename, delim=","):
     """
@@ -142,10 +180,98 @@ def print_sorted(time, rdd, num=10):
     sorted_rdd = rdd.sortBy(lambda x: x[1], ascending=False)
 
     taken = sorted_rdd.take(num)
+    print("time:", time)
     print("-----------")
     for rec in taken:
         print(rec[0], "->", rec[1])
     print("-----------")
+
+def df_update():
+    global df
+    global updated
+
+    while True:
+        if updated:
+            #print("sdf:", sdf)
+            print("loop: updated")
+            updated = False
+            yield df
+
+        time.sleep(0.1)
+
+def plot_update(data, x_lab="time", grow_fact=1.618034):
+    """
+    Updates values for plotting.
+    """
+    global y_shift
+    global x_shift
+    xmin, xmax = ax1.get_xlim()
+    ymin, ymax = ax1.get_ylim()
+
+    if max(data[x_lab]) >= xmax - x_shift:
+        #ax1.set_xlim(xmin + 2*x_shift, xmax + 2*x_shift)
+        ax1.set_xlim(xmin, int(xmax*grow_fact))
+        x_shift = int(x_shift*grow_fact)
+
+    new_lines = []
+    for i, col in enumerate(data):
+        if col == x_lab:
+            continue
+        lines[i].set_data(data[x_lab], data[col])
+
+        if max(data[col]) >= ymax - y_shift:
+            #ax1.set_ylim(ymin + 2*y_shift, ymax + 2*y_shift)
+            ax1.set_ylim(ymin, int(ymax*grow_fact))
+            y_shift = int(y_shift*grow_fact)
+
+        new_lines.append(lines[i])
+
+    plt.legend(new_lines, [col for col in data if col != x_lab], loc=1)
+
+    return new_lines
+
+def compute_df(time, rdd, start, num=10, exclude="None", max_rows=1000, 
+    debug=True, time_lab="time"):
+    """
+    Computes tweets dataframes for displaying.
+    """
+    global df
+    global updated
+
+    rdd = rdd.filter(lambda x: x[0] != exclude)
+    sorted_rdd = rdd.sortBy(lambda x: x[1], ascending=False)
+    taken = sorted_rdd.take(num)
+
+    if debug:
+        print("[compute_df]time:", time)
+    try:
+        hts, freq = zip(*taken)
+        if debug:
+            print("[compute_df]hts:", hts)
+            print("[compute_df]freq:", freq)
+    except ValueError:
+        return
+
+    for ht in hts:
+        if not ht in df:
+            df[ht] = len(df)*[0]
+    for col in df:
+        if col != time_lab and not col in hts:
+            if debug:
+                print("dropping col", col)
+            df.drop(col, 1, inplace=True)
+    
+    #time elapsed since beginning of program
+    elapsed = (time - start).total_seconds()
+
+    #computing new column
+    new_col = pd.DataFrame([[elapsed] + list(freq)], 
+        columns=[time_lab] + list(hts))
+
+    #updating dataframe
+    df = df.append(new_col)
+    df = df[-max_rows:]
+    updated = True
 
 def get_locations_dict(locations):
     locs = []
@@ -191,8 +317,9 @@ def main():
         "locations to filter (comma-separated, no space)")
     keywords = oarg.Oarg("-k --keywords", "", 
         "keywords to filter (comma-separated, no space)")
-    batch_interval = oarg.Oarg("-i --batch-interval", 2, "batch interval")
+    batch_interval = oarg.Oarg("-i --batch-interval", 2.0, "batch interval")
     show_tweets = oarg.Oarg("-s --show-tweets", False, "show tweets")
+    graphical = oarg.Oarg("-g --graphical", False, "graphical mode")
     hlp = oarg.Oarg("-h --help", False, "this help message")
 
     oarg.parse(delim=":")
@@ -232,12 +359,27 @@ def main():
     #twitter thread start
     twitter_thr.start()
 
-    #print the current state
-    #running_counts.pprint()
-    running_counts.foreachRDD(print_sorted)
+    #graphical mode, plots things
+    if graphical.val:
+        print("GRAPHICAL MODE")
+        #computing dataframe function
+        start = datetime.datetime.now()
+        compute = lambda time, rdd: compute_df(time, rdd, start)
+        running_counts.foreachRDD(compute)
 
-    #start the computation
-    stc.start()
+        #animation creation
+        ani = am.FuncAnimation(fig, plot_update, df_update)
+
+        #start the computation
+        stc.start()
+
+        #plot show
+        plt.show()
+    else:
+        print("CONSOLE MODE")
+        running_counts.foreachRDD(print_sorted)
+
+        stc.start()
 
     #wait for the computation to terminate
     stc.awaitTermination()
