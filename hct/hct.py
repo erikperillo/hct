@@ -17,11 +17,8 @@ import json
 import sys
 import os
 #spark api
-try:
-    from pyspark import SparkContext
-    from pyspark.streaming import StreamingContext
-except ImportError:
-    print("WARNING: could not import pyspark")
+from pyspark import SparkContext
+from pyspark.streaming import StreamingContext
 #twitter streaming api
 from tweepy.streaming import StreamListener
 from tweepy import OAuthHandler
@@ -36,10 +33,13 @@ LOCATIONS = {
     "sp": [-53.342250, -25.271552, -43.388637, -19.235468]
 }
 
+#maximum number of data points
+MAX_ROWS = 60*20
+
 #plotting constants
 min_x, max_x = 0., 60.
 min_y, max_y = 0., 12.
-x_shift, y_shift = 10, 5
+x_shift, y_shift = 0.05, 0.05
 
 #number of hashtags
 NUM_HTS = 10
@@ -193,25 +193,25 @@ def df_update():
     while True:
         if updated:
             #print("sdf:", sdf)
-            print("loop: updated")
             updated = False
             yield df
 
         time.sleep(0.1)
 
-def plot_update(data, x_lab="time", grow_fact=1.618034):
+def plot_update(data, x_lab="time", grow_fact=1.618034, max_rows=MAX_ROWS):
     """
     Updates values for plotting.
     """
     global y_shift
     global x_shift
+
     xmin, xmax = ax1.get_xlim()
     ymin, ymax = ax1.get_ylim()
 
-    if max(data[x_lab]) >= xmax - x_shift:
+    if max(data[x_lab]) >= xmax - int(x_shift*xmax):
         #ax1.set_xlim(xmin + 2*x_shift, xmax + 2*x_shift)
-        ax1.set_xlim(xmin, int(xmax*grow_fact))
-        x_shift = int(x_shift*grow_fact)
+        new_xmax = int(xmax*grow_fact)
+        ax1.set_xlim(max(xmin, new_xmax-max_rows), new_xmax)
 
     new_lines = []
     for i, col in enumerate(data):
@@ -219,18 +219,19 @@ def plot_update(data, x_lab="time", grow_fact=1.618034):
             continue
         lines[i].set_data(data[x_lab], data[col])
 
-        if max(data[col]) >= ymax - y_shift:
+        if max(data[col]) >= ymax - int(y_shift*ymax):
             #ax1.set_ylim(ymin + 2*y_shift, ymax + 2*y_shift)
-            ax1.set_ylim(ymin, int(ymax*grow_fact))
-            y_shift = int(y_shift*grow_fact)
+            new_ymax = int(ymax*grow_fact)
+            ax1.set_ylim(max(ymin, new_ymax-max_rows), new_ymax)
+            ymin, ymax = ax1.get_ylim()
 
         new_lines.append(lines[i])
 
-    plt.legend(new_lines, [col for col in data if col != x_lab], loc=1)
+    plt.legend(new_lines, [col for col in data if col != x_lab], loc=2)
 
     return new_lines
 
-def compute_df(time, rdd, start, num=10, exclude="None", max_rows=1000, 
+def compute_df(time, rdd, start, num=10, exclude="None", max_rows=MAX_ROWS, 
     debug=True, time_lab="time"):
     """
     Computes tweets dataframes for displaying.
